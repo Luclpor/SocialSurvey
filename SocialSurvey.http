@@ -1,0 +1,8 @@
+@SocialSurvey_HostAddress = http://localhost:5182
+
+GET {{SocialSurvey_HostAddress}}/weatherforecast/
+Accept: application/json
+
+GET {{SocialSurvey_HostAddress}}/Question/GetSurveyByID/{id}
+Accept: application/json
+###
