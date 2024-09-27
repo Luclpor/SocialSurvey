@@ -44,32 +44,25 @@ namespace SocialSurvey.Repository
         public async Task<(bool, int, string)> AddResultAsync(int questionId, string[] arrAnswerTexts, int surveyId,int? interviewId = null )
         {
             var surveyQuestions = await _surveyContext.SurveyQuestions.Where(sq => sq.SurveyId == surveyId).Include(sq => sq.Question).OrderBy(sq => sq.Order).ToListAsync();
-            if (!surveyQuestions.Any()) return (false, -1,"survey dont found");
+            if (!surveyQuestions.Any()) 
+                return (false, -1,"survey dont found");
             var currentSQ = surveyQuestions.Where(sq => sq.QuestionId == questionId).Select(sq =>new { Question = sq.Question, Order = sq.Order,SurveyId=sq.SurveyId}).FirstOrDefault();
-            if(currentSQ == null) return (false, -1, "question dont found");
+            if(currentSQ == null) 
+                return (false, -1, "question dont found");
             int nextQuestionId = surveyQuestions.Skip(currentSQ.Order).Select(sq=>sq.QuestionId).FirstOrDefault(-1);
-            Interview interview;  
-            if (interviewId == null)
-            {
-                interview = new Interview
-                {
-                    SurveyId = currentSQ.SurveyId,
-                    StartTime = DateTime.Now
-                };
-                await _surveyContext.Interviews.AddAsync(interview);
-                await _surveyContext.SaveChangesAsync();
-            }
-            else
-            {
-                interview  = await _surveyContext.Interviews.FindAsync(interviewId);
-                if (interview == null) return (false, -1, "interview dont found");
-            }
+
+            Interview interview = await GetInterviewAsync(currentSQ.SurveyId, interviewId); 
+           
+            if (interview == null) 
+                return (false, -1, "interview dont found");
+            
             if (nextQuestionId == -1)
             {
                 interview.EndTime = DateTime.Now;
             }
             var answerIds = await GetAnswerIdsAsync(arrAnswerTexts, questionId);
             if(answerIds == null) return (false, -1, "answers dont found");
+
             foreach (var answerId in answerIds)
             {
                 await _surveyContext.Results.AddAsync(new Result
@@ -89,6 +82,27 @@ namespace SocialSurvey.Repository
             var allAnswersInQuestion = await _surveyContext.QuestionAnswers.Where(qa => qa.QuestionId == questionId).Include(qa => qa.Answer).Select(qa=>qa.Answer).ToListAsync();
             var userAnswerIds = allAnswersInQuestion.Where(a => arrAnswerTexts.Contains(a.Text)).Select(a => a.Id);
             if(userAnswerIds.Count() == arrAnswerTexts.Length) return userAnswerIds.ToList();
+            return null;
+        }
+
+        private async Task<Interview> GetInterviewAsync(int surveyId, int? interviewId = null)
+        {
+            Interview interview = null;
+            if(interviewId != null) interview = await _surveyContext.Interviews.FindAsync(interviewId);
+            if (interview == null) return await CreateInterviewAsync(surveyId);
+            return interview;
+        }
+
+        private async Task<Interview> CreateInterviewAsync(int surveyId)
+        {
+            Interview interview =new Interview
+            {
+                SurveyId = surveyId,
+                StartTime = DateTime.Now
+            };
+            await _surveyContext.Interviews.AddAsync(interview);
+            bool successful = await _surveyContext.SaveChangesAsync() > 0;
+            if(successful) return interview;
             return null;
         }
     }
